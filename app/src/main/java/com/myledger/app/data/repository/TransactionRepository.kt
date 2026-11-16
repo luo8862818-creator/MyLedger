@@ -21,7 +21,7 @@ class TransactionRepository(
     fun forBillRange(startMillis: Long, endExclusiveMillis: Long, type: String, query: String): Flow<List<Transaction>> =
         transactionDao.getForBillRange(startMillis, endExclusiveMillis, type, query)
 
-    suspend fun save(transaction: Transaction) = if (transaction.id == 0L) transactionDao.insert(transaction) else transactionDao.update(transaction)
+    suspend fun saveAll(transactions: List<Transaction>) = transactionDao.saveAll(transactions)
 
     suspend fun delete(transaction: Transaction) {
         transactionDao.delete(transaction)

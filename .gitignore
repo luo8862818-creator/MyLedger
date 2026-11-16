@@ -1,16 +1,73 @@
+# Gradle / Kotlin / native build caches
+.gradle/
+.kotlin/
+**/build/
+**/.cxx/
+**/.externalNativeBuild/
+
+# Android Studio and machine-specific configuration
+.idea/
 *.iml
-.gradle
-/local.properties
-/myledger-release.jks
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
 local.properties
+*.local.properties
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Signing material and local credentials (never commit)
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+/keystore.properties
+/signing.properties
+/google-services.json
+/app/google-services.json
+
+# Generated packages, diagnostics and temporary files
+*.apk
+*.aab
+*.ap_
+*.dex
+*.log
+*.hprof
+*.dmp
+*.tmp
+*.bak
+*.orig
+*.rej
+/captures/
+/screenshots/
+/artifacts/
+/UI预览/
+
+# Personal ledgers, exported backups and database runtime files
+*.csv
+*.tsv
+*.xls
+*.xlsx
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+/backups/
+/private/
+/local-validation/
+
+# Local agent configuration
+/.codex/
+/.agents/
+
+# Local acceptance reports and private-backup-specific validation
+/docs/*
+!/docs/architecture.md
+/app/src/androidTest/java/com/myledger/app/CalendarRestoreUiTest.kt
+
+# Keep Gradle Wrapper and Room schema JSON in source control.

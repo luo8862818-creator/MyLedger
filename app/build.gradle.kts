@@ -24,8 +24,8 @@ android {
         applicationId = "com.myledger.app"
         minSdk = 24
         targetSdk = 37
-        versionCode = 5
-        versionName = "1.3.1"
+        versionCode = 8
+        versionName = "1.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

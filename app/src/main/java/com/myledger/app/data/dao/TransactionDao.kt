@@ -26,9 +26,41 @@ interface TransactionDao {
     @Delete
     suspend fun delete(transaction: Transaction)
 
+    /** One commit for an entire user submission; a failed row rolls back every row. */
     @RoomTransaction
-    suspend fun importTransactions(transactions: List<Transaction>): Int =
-        transactions.count { insertImported(it) != -1L }
+    suspend fun saveAll(transactions:List<Transaction>) {
+        require(transactions.isNotEmpty())
+        transactions.forEach { transaction ->
+            require(transaction.amountCent>0 && transaction.type in listOf("收入","支出") && transaction.category.isNotBlank())
+            if(transaction.id==0L) insert(transaction) else update(transaction)
+        }
+    }
+
+    @RoomTransaction
+    suspend fun importTransactions(transactions: List<Transaction>): Int {
+        val existing = getAllTransactionsForExport()
+        fun key(t: Transaction) = listOf(t.date.toString(), t.type, t.category, t.amountCent.toString(), t.note)
+        val existingCounts = existing.groupingBy(::key).eachCount()
+        val incomingCounts = mutableMapOf<List<String>, Int>()
+        val sourceRows = mutableSetOf<Pair<Long, List<String>>>()
+        val ids = existing.map { it.id }.toMutableSet()
+        var count = 0
+        for (transaction in transactions) {
+            val fingerprint = key(transaction)
+            if (transaction.id > 0 && !sourceRows.add(transaction.id to fingerprint)) continue
+            val ordinal = (incomingCounts[fingerprint] ?: 0) + 1
+            incomingCounts[fingerprint] = ordinal
+            // Match multiplicities: two legitimate identical purchases with different IDs remain two.
+            if (ordinal <= (existingCounts[fingerprint] ?: 0)) continue
+            // A backup from a different installation can reuse an existing primary key.
+            val candidate = if (transaction.id in ids) transaction.copy(id = 0) else transaction
+            val id = insertImported(candidate)
+            check(id != -1L) { "无法导入账单，事务已回滚" }
+            ids.add(id)
+            count++
+        }
+        return count
+    }
 
     @Query("SELECT * FROM transactions ORDER BY date DESC, id DESC")
     fun getAllTransactions(): Flow<List<Transaction>>

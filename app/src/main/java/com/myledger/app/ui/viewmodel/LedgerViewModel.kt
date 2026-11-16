@@ -22,9 +22,14 @@ class LedgerViewModel(private val transactions: TransactionRepository, private v
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LedgerData())
     fun billTransactions(startMillis: Long, endExclusiveMillis: Long, type: String, query: String): Flow<List<Transaction>> =
         transactions.forBillRange(startMillis, endExclusiveMillis, type, query)
-    fun saveTransaction(transaction: Transaction, onSaved: () -> Unit) = viewModelScope.launch {
-        transactions.save(transaction)
-        onSaved()
+    fun saveTransactions(batch: List<Transaction>, onError: () -> Unit = {}, onSaved: () -> Unit) = viewModelScope.launch {
+        try {
+            withContext(Dispatchers.IO) { transactions.saveAll(batch) }
+            onSaved()
+        } catch (e: Exception) {
+            if (e is java.util.concurrent.CancellationException) throw e
+            onError()
+        }
     }
     fun prepareTransactionsCsv(onReady: (String) -> Unit, onError: () -> Unit) = viewModelScope.launch {
         try {
@@ -47,11 +52,13 @@ class LedgerViewModel(private val transactions: TransactionRepository, private v
             onError()
         }
     }
-    fun deleteTransaction(transaction: Transaction, onDeleted: () -> Unit = {}) = viewModelScope.launch {
-        transactions.delete(transaction)
-        onDeleted()
+    fun deleteTransaction(transaction: Transaction, onError: () -> Unit = {}, onDeleted: () -> Unit = {}) = viewModelScope.launch {
+        try { transactions.delete(transaction); onDeleted() } catch(e: Exception) { if(e is java.util.concurrent.CancellationException) throw e; onError() }
     }
-    fun saveItem(item: Item) = viewModelScope.launch { items.save(item) }
-    fun deleteItem(item: Item) = viewModelScope.launch { items.delete(item) }
+    suspend fun exportItems(): String = withContext(Dispatchers.IO) { com.myledger.app.domain.item.ItemCsv.format(items.allForExport()) }
+    suspend fun previewItems(csv: String) = withContext(Dispatchers.IO) { com.myledger.app.domain.item.ItemCsv.parse(csv,items.allForExport()) }
+    suspend fun importItems(preview: com.myledger.app.domain.item.ItemCsvPreview) = withContext(Dispatchers.IO) { items.importItems(preview.items) }
+    fun saveItem(item: Item, onError: () -> Unit = {}, onSaved: () -> Unit = {}) = viewModelScope.launch { try { items.save(item); onSaved() } catch(e: Exception) { if(e is java.util.concurrent.CancellationException) throw e; onError() } }
+    fun deleteItem(item: Item, onError: () -> Unit = {}, onDeleted: () -> Unit = {}) = viewModelScope.launch { try { items.delete(item); onDeleted() } catch(e: Exception) { if(e is java.util.concurrent.CancellationException) throw e; onError() } }
 }
 data class LedgerData(val transactions: List<Transaction> = emptyList(), val items: List<Item> = emptyList())

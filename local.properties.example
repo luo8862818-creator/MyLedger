@@ -1,0 +1,9 @@
+# Copy this file to local.properties and set your local Android SDK location.
+# Keep forward slashes on Windows, or escape backslashes as required by Java Properties.
+sdk.dir=C:/Android/Sdk
+
+# Optional release signing. Use your own keystore outside the repository.
+# releaseStoreFile=C:/private/myledger-release.jks
+# releaseStorePassword=CHANGE_ME
+# releaseKeyAlias=CHANGE_ME
+# releaseKeyPassword=CHANGE_ME

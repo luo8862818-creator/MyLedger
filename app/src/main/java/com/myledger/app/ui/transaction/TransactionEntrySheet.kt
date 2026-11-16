@@ -1,333 +1,75 @@
 package com.myledger.app.ui.transaction
-
+import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.semantics.*
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.*
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.unit.sp
 import com.myledger.app.data.entity.Transaction
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import com.myledger.app.ui.components.*
+import java.math.BigDecimal
+import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-fun TransactionEntrySheet(isSaving: Boolean, onDismiss: () -> Unit, onSave: (Transaction) -> Unit) {
-    var amount by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf("支出") }
-    var category by remember { mutableStateOf("餐饮") }
-    var note by remember { mutableStateOf("") }
-    var time by remember { mutableStateOf(SimpleDateFormat("HH:mm", Locale.CHINA).format(Date())) }
-    var date by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf("") }
-    var expanded by remember { mutableStateOf(false) }
-    val categories = if (type == "支出") {
-        listOf("餐饮", "出行", "加油", "停车", "购物", "居住", "娱乐", "其他")
-    } else {
-        listOf("工资", "奖金", "兼职", "退款", "其他收入")
-    }
-    val scrollState = rememberScrollState()
-    val coroutineScope = rememberCoroutineScope()
-    val focusManager = LocalFocusManager.current
-    val amountRequester = remember { BringIntoViewRequester() }
-    val timeRequester = remember { BringIntoViewRequester() }
-    val noteRequester = remember { BringIntoViewRequester() }
-
-    fun revealField(requester: BringIntoViewRequester) {
-        expanded = true
-        coroutineScope.launch {
-            // Let the keyboard and the resized sheet settle before revealing the focused field.
-            delay(80)
-            requester.bringIntoView()
-        }
-    }
-
-    fun submit() {
-        val cents = parseCents(amount)
-        val timestamp = timestampFor(date, time)
-        when {
-            cents == null -> error = "请输入有效金额（最多两位小数）"
-            timestamp == null -> error = "时间格式请使用 24 小时制，例如 08:30"
-            else -> onSave(
-                Transaction(
-                    amountCent = cents,
-                    type = type,
-                    category = category,
-                    note = note.trim(),
-                    date = timestamp
-                )
-            )
-        }
-    }
-
-    // A static surface avoids the expensive enter animation of ModalBottomSheet on lower-end devices.
-    Dialog(
-        onDismissRequest = { if (!isSaving) onDismiss() },
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnClickOutside = false,
-            decorFitsSystemWindows = false
-        )
-    ) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
-            val density = LocalDensity.current
-            val layout = TransactionEntryLayout.calculate(
-                viewportHeightPx = with(density) { maxHeight.roundToPx() },
-                imeBottomPx = WindowInsets.ime.getBottom(density),
-                navigationBottomPx = WindowInsets.navigationBars.getBottom(density),
-                expanded = expanded
-            )
-            val sheetHeight = with(density) { layout.sheetHeightPx.toDp() }
-            val bottomInset = with(density) { layout.bottomInsetPx.toDp() }
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = bottomInset)
-                    .fillMaxWidth()
-                    .height(sheetHeight),
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                tonalElevation = 6.dp
-            ) {
-                Box(Modifier.fillMaxSize()) {
-                    Column(
-                        modifier = Modifier
-                            .widthIn(max = 640.dp)
-                            .fillMaxSize()
-                            .align(Alignment.TopCenter)
-                            .padding(horizontal = 24.dp)
-                    ) {
-                    EntrySheetHandle(
-                        expanded = expanded,
-                        onExpand = { expanded = true },
-                        onCollapse = { expanded = false }
-                    )
-                    Text("记一笔", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        if (expanded) "下拉顶部横条可收起" else "向上拉顶部横条可展开全部内容",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .verticalScroll(scrollState)
-                            .padding(top = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = amount,
-                            onValueChange = { amount = it; error = "" },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .bringIntoViewRequester(amountRequester)
-                                .onFocusChanged { if (it.isFocused) revealField(amountRequester) },
-                            label = { Text("金额") },
-                            prefix = { Text("¥", style = MaterialTheme.typography.headlineMedium) },
-                            textStyle = MaterialTheme.typography.headlineMedium,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("支出", "收入").forEach { option ->
-                                FilterChip(
-                                    selected = type == option,
-                                    onClick = {
-                                        type = option
-                                        category = if (option == "支出") "餐饮" else "工资"
-                                    },
-                                    label = { Text(option, maxLines = 1, softWrap = false) }
-                                )
-                            }
-                        }
-                        Text("分类", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            categories.forEach { option ->
-                                FilterChip(
-                                    selected = category == option,
-                                    onClick = { category = option },
-                                    label = { Text(option, maxLines = 1, softWrap = false) }
-                                )
-                            }
-                        }
-                        OutlinedTextField(
-                            value = SimpleDateFormat("yyyy年MM月dd日", Locale.CHINA).format(Date(date)),
-                            onValueChange = {},
-                            readOnly = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("日期") },
-                            trailingIcon = {
-                                TextButton(onClick = {
-                                    focusManager.clearFocus(force = true)
-                                    showDatePicker = true
-                                }) { Text("选择") }
-                            }
-                        )
-                        OutlinedTextField(
-                            value = time,
-                            onValueChange = { time = it; error = "" },
-                            modifier = Modifier
-                                .width(160.dp)
-                                .bringIntoViewRequester(timeRequester)
-                                .onFocusChanged { if (it.isFocused) revealField(timeRequester) },
-                            label = { Text("时间") },
-                            placeholder = { Text("08:30") },
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = note,
-                            onValueChange = { note = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .bringIntoViewRequester(noteRequester)
-                                .onFocusChanged { if (it.isFocused) revealField(noteRequester) },
-                            label = { Text("备注（可选）") },
-                            maxLines = 2
-                        )
-                        if (error.isNotEmpty()) Text(error, color = MaterialTheme.colorScheme.error)
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(enabled = !isSaving, onClick = onDismiss) { Text("取消") }
-                        Button(
-                            enabled = !isSaving,
-                            onClick = ::submit,
-                            modifier = Modifier.padding(start = 8.dp)
-                        ) { Text(if (isSaving) "保存中" else "确定") }
-                    }
-                }
-                }
-            }
-        }
-    }
-    if (showDatePicker) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = date)
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    state.selectedDateMillis?.let { date = it }
-                    showDatePicker = false
-                }) { Text("确定") }
-            },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } }
-        ) { DatePicker(state = state) }
-    }
-}
-
-@Composable
-private fun EntrySheetHandle(expanded: Boolean, onExpand: () -> Unit, onCollapse: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(32.dp)
-            .pointerInput(expanded) {
-                var totalDrag = 0f
-                detectVerticalDragGestures(
-                    onDragStart = { totalDrag = 0f },
-                    onVerticalDrag = { _, dragAmount -> totalDrag += dragAmount },
-                    onDragEnd = {
-                        when {
-                            totalDrag < -24f -> onExpand()
-                            totalDrag > 24f -> onCollapse()
-                        }
-                    }
-                )
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            Modifier
-                .width(36.dp)
-                .height(4.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f))
-        )
-    }
-}
-
-private fun parseCents(raw: String): Long? {
-    if (!Regex("^\\d{1,12}(\\.\\d{1,2})?$").matches(raw)) return null
-    val parts = raw.split('.')
-    return try {
-        Math.addExact(
-            Math.multiplyExact(parts[0].toLong(), 100),
-            parts.getOrNull(1)?.padEnd(2, '0')?.toLong() ?: 0
-        ).takeIf { it > 0 }
-    } catch (_: Exception) {
-        null
-    }
-}
-
-private fun timestampFor(date: Long, rawTime: String): Long? {
-    val match = Regex("^([01]?\\d|2[0-3]):([0-5]\\d)$").matchEntire(rawTime) ?: return null
-    return Calendar.getInstance().apply {
-        timeInMillis = date
-        set(Calendar.HOUR_OF_DAY, match.groupValues[1].toInt())
-        set(Calendar.MINUTE, match.groupValues[2].toInt())
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }.timeInMillis
+@OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
+@Composable fun TransactionEntrySheet(isSaving:Boolean,onDismiss:()->Unit,onSave:(List<Transaction>)->Unit,initial:Transaction?=null,initialInput:String?=null){
+ var showRules by remember{mutableStateOf(false)}
+ var inputMode by remember{mutableStateOf(initialInput)}
+ var amount by remember{mutableStateOf(initial?.let{ledgerMoney(it.amountCent)}?:"")};var type by remember{mutableStateOf(initial?.type?:"支出")};var category by remember{mutableStateOf(initial?.category?:"餐饮")};var note by remember{mutableStateOf(initial?.note?:"")};var date by remember{mutableLongStateOf(initial?.date?:System.currentTimeMillis())};var time by remember{mutableStateOf(ledgerDate(date,"HH:mm"))};var picker by remember{mutableStateOf(false)};var error by remember{mutableStateOf("")};var revision by remember{mutableIntStateOf(0)}
+ val context=LocalContext.current;val rules=remember{CategoryRules(context)}
+ val categories=remember(type,revision){((if(type=="收入")listOf("工资","奖金","兼职","退款","其他收入")else listOf("餐饮","出行","加油","停车","购物","居住","娱乐","其他"))+rules.read(type).keys+listOfNotNull(initial?.category?.takeIf{initial.type==type})).distinct()}
+ fun submit(){
+  if(isSaving)return
+  val cents=runCatching{require(Regex("[0-9]{1,12}(\\.[0-9]{1,2})?").matches(amount));BigDecimal(amount).movePointRight(2).longValueExact().also{require(it>0)}}.getOrNull()
+  val match=Regex("([01]?\\d|2[0-3]):([0-5]\\d)").matchEntire(time)
+  when{cents==null->error="请输入大于零的金额，最多两位小数";type !in listOf("收入","支出")->error="请选择收入或支出";category !in categories->error="请选择分类";match==null->error="请输入有效时间，例如 08:30";else->{val stamp=Calendar.getInstance().apply{timeInMillis=date;set(Calendar.HOUR_OF_DAY,match.groupValues[1].toInt());set(Calendar.MINUTE,match.groupValues[2].toInt());set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)}.timeInMillis;onSave(listOf(Transaction(id=initial?.id?:0,amountCent=cents,type=type,category=category,note=note.trim(),date=stamp,relatedItemId=initial?.relatedItemId,createdAt=initial?.createdAt?:System.currentTimeMillis(),updatedAt=System.currentTimeMillis())))}}
+ }
+ ModalBottomSheet(onDismissRequest={if(!isSaving)onDismiss()},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),sheetGesturesEnabled=false,dragHandle=null,containerColor=MaterialTheme.colorScheme.background){
+ CompositionLocalProvider(LocalOverscrollFactory provides null){
+ Column(Modifier.fillMaxWidth().fillMaxHeight(.94f).testTag("transaction-sheet")){
+  Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically){TextButton(enabled=!isSaving,onClick=onDismiss){Text("取消")};Text(if(initial!=null)"编辑账单"else when(inputMode){"text"->"文字记账";"voice"->"语音记账";else->"记一笔"},style=MaterialTheme.typography.titleLarge,modifier=Modifier.weight(1f));Text("仅自己可见",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(end=12.dp))}
+  if(inputMode!=null){
+   SmartEntryInput(mode=inputMode,onModeChange={inputMode=it},isSaving=isSaving,allowMultiple=initial==null,onSave={batch->onSave(batch.map{transaction->transaction.copy(id=initial?.id?:0,relatedItemId=initial?.relatedItemId,createdAt=initial?.createdAt?:transaction.createdAt)})},modifier=Modifier.weight(1f))
+  }else{
+  Column(Modifier.weight(1f).testTag("transaction-scroll").verticalScroll(rememberScrollState()).padding(horizontal=22.dp),verticalArrangement=Arrangement.spacedBy(20.dp)){
+   Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center){SingleChoiceSegmentedButtonRow{listOf("支出","收入").forEachIndexed{i,t->SegmentedButton(selected=type==t,onClick={type=t;category=if(t=="支出")"餐饮" else "工资"},shape=SegmentedButtonDefaults.itemShape(i,2),label={Text(t)},icon={})}}}
+   Column(Modifier.fillMaxWidth().padding(vertical=12.dp)){
+    Text("${type.ifBlank{"账单"}}金额",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(Modifier.padding(top=8.dp),verticalAlignment=Alignment.CenterVertically){Text("¥",fontSize=28.sp,modifier=Modifier.padding(end=10.dp));BasicTextField(value=amount,onValueChange={amount=it;error=""},singleLine=true,textStyle=MaterialTheme.typography.displaySmall.copy(color=MaterialTheme.colorScheme.onSurface,fontSize=44.sp),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),cursorBrush=SolidColor(MaterialTheme.colorScheme.primary),modifier=Modifier.weight(1f).semantics{contentDescription="金额"},decorationBox={inner->Box{if(amount.isBlank())Text("0.00",fontSize=44.sp,color=MaterialTheme.colorScheme.outline);inner()}})}
+   }
+   SmartEntryInput(mode=null,onModeChange={inputMode=it},isSaving=isSaving,onSave=onSave)
+   TextButton(onClick={showRules=!showRules}){Text(if(showRules)"收起分类规则"else "分类识别规则")}
+   if(showRules)CategoryRulesEditor{revision++}
+   Column{Text("选择分类",style=MaterialTheme.typography.titleSmall,modifier=Modifier.padding(bottom=12.dp));BoxWithConstraints{val cell=(maxWidth-24.dp)/4;FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){categories.forEach{c->Column(Modifier.width(cell).semantics{selected=category==c}.clickable{category=c}.padding(vertical=4.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(7.dp)){Surface(shape=MaterialTheme.shapes.medium,color=if(category==c)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface){Box(Modifier.size(52.dp),contentAlignment=Alignment.Center){LedgerIcon(c,color=if(category==c)MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)}};Text(c,style=MaterialTheme.typography.labelMedium,color=if(category==c)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}}}}}
+   Surface(shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.surface){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+    Row(Modifier.fillMaxWidth().clickable{picker=true},verticalAlignment=Alignment.CenterVertically){LedgerIcon("calendar");Text("日期",modifier=Modifier.padding(start=10.dp).weight(1f));Text(ledgerDate(date,"yyyy-MM-dd"),style=MaterialTheme.typography.bodyMedium);LedgerIcon("right",Modifier.padding(start=8.dp).size(14.dp))}
+    HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+    OutlinedTextField(time,{time=it;error=""},label={Text("时间")},singleLine=true,modifier=Modifier.fillMaxWidth())
+    OutlinedTextField(note,{note=it},label={Text("备注")},placeholder={Text("这笔钱用在了哪里？")},modifier=Modifier.fillMaxWidth(),maxLines=3)
+   }}
+   if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
+   Spacer(Modifier.height(4.dp))
+  }
+  Button(enabled=!isSaving,onClick=::submit,shape=MaterialTheme.shapes.medium,modifier=Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=14.dp).heightIn(min=54.dp)){if(isSaving){CircularProgressIndicator(Modifier.size(18.dp),strokeWidth=2.dp,color=MaterialTheme.colorScheme.onPrimary);Spacer(Modifier.width(10.dp))};Text(if(isSaving)"正在保存…" else if(initial==null)"保存账单" else "保存修改")}
+  }
+ }
+ }
+ }
+ if(picker){
+ val utc=TimeZone.getTimeZone("UTC");val local=Calendar.getInstance().apply{timeInMillis=date}
+ val selected=Calendar.getInstance(utc).apply{clear();set(local.get(Calendar.YEAR),local.get(Calendar.MONTH),local.get(Calendar.DAY_OF_MONTH))}.timeInMillis
+ ChineseDatePickerDialog(selected,onDismiss={picker=false},onSelected={millis->val c=Calendar.getInstance(utc).apply{timeInMillis=millis};date=Calendar.getInstance().apply{timeInMillis=date;set(c.get(Calendar.YEAR),c.get(Calendar.MONTH),c.get(Calendar.DAY_OF_MONTH))}.timeInMillis})
+ }
 }
